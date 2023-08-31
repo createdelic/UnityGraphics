@@ -75,6 +75,12 @@ namespace UnityEngine.Rendering.PostProcessing
         public bool stopNaNPropagation = true;
 
         /// <summary>
+        /// If <c>true</c>, the PostProcessLayer will skip Volume-related processing as an optimization
+        /// technique. This can be used when you're only using the PostProcessLayer to do AA.
+        /// </summary>
+        public bool skipVolumes = false;
+
+        /// <summary>
         /// If <c>true</c>, it will render straight to the backbuffer and save the final blit done
         /// by the engine. This has less overhead and will improve performance on lower-end platforms
         /// (like mobiles) but breaks compatibility with legacy image effect that use OnRenderImage.
@@ -811,10 +817,13 @@ namespace UnityEngine.Rendering.PostProcessing
         {
             var flags = DepthTextureMode.None;
 
-            foreach (var bundle in m_Bundles)
+            if (!skipVolumes)
             {
-                if (bundle.Value.settings.IsEnabledAndSupported(context))
-                    flags |= bundle.Value.renderer.GetCameraFlags();
+                foreach (var bundle in m_Bundles)
+                {
+                    if (bundle.Value.settings.IsEnabledAndSupported(context))
+                        flags |= bundle.Value.renderer.GetCameraFlags();
+                }
             }
 
             // Special case for AA & lighting effects
@@ -862,6 +871,10 @@ namespace UnityEngine.Rendering.PostProcessing
         /// otherwise</returns>
         public bool HasActiveEffects(PostProcessEvent evt, PostProcessRenderContext context)
         {
+            if (skipVolumes)
+            {
+                return false;
+            }
             var list = sortedBundles[evt];
 
             foreach (var item in list)
@@ -927,6 +940,10 @@ namespace UnityEngine.Rendering.PostProcessing
         /// <param name="cmd">A command buffer to fill.</param>
         public void UpdateVolumeSystem(Camera cam, CommandBuffer cmd)
         {
+            if (skipVolumes)
+            {
+                return;
+            }
             if (m_SettingsUpdateNeeded)
             {
                 cmd.BeginSample("VolumeBlending");
