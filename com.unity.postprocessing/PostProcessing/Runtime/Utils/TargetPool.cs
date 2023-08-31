@@ -4,40 +4,30 @@ namespace UnityEngine.Rendering.PostProcessing
 {
     class TargetPool
     {
-        readonly List<int> m_Pool;
+        private const int MaxTargets = 100;
+
+        readonly int[] m_Pool;
         int m_Current;
 
         internal TargetPool()
         {
-            m_Pool = new List<int>();
-            Get(); // Pre-warm with a default target to avoid black frame on first frame
+            m_Pool = new int[MaxTargets];
+            for (int i = 0; i < m_Pool.Length; ++i)
+            {
+                m_Pool[i] = Shader.PropertyToID("_TargetPool" + i);
+            }
         }
 
         internal int Get()
         {
             int ret = Get(m_Current);
-            m_Current++;
+            ++m_Current;
             return ret;
         }
 
         int Get(int i)
         {
-            int ret;
-
-            if (m_Pool.Count > i)
-            {
-                ret = m_Pool[i];
-            }
-            else
-            {
-                // Avoid discontinuities
-                while (m_Pool.Count <= i)
-                    m_Pool.Add(Shader.PropertyToID("_TargetPool" + i));
-
-                ret = m_Pool[i];
-            }
-
-            return ret;
+            return m_Pool[i % MaxTargets];
         }
 
         internal void Reset()
