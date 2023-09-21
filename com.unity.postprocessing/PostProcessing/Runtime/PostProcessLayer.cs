@@ -753,7 +753,7 @@ namespace UnityEngine.Rendering.PostProcessing
         /// <returns>The bundle for the effect of type <typeparam name="type"></typeparam></returns>
         public PostProcessBundle GetBundle(Type settingsType)
         {
-            Assert.IsTrue(m_Bundles.ContainsKey(settingsType), "Invalid type");
+            //Assert.IsTrue(m_Bundles.ContainsKey(settingsType), "Invalid type");
             return m_Bundles[settingsType];
         }
 
@@ -805,6 +805,29 @@ namespace UnityEngine.Rendering.PostProcessing
                     {
                         var fromParam = target.parameters[i];
                         fromParam.Interp(fromParam, toParam, interpFactor);
+                    }
+                }
+            }
+        }
+
+        internal void OverrideSettings(List<PostProcessEffectSettings> baseSettings)
+        {
+            // Go through all settings & overriden parameters for the given volume and lerp values
+            foreach (var settings in baseSettings)
+            {
+                if (!settings.active)
+                    continue;
+
+                var target = GetBundle(settings.GetType()).settings;
+                int count = settings.parameters.Count;
+
+                for (int i = 0; i < count; i++)
+                {
+                    var toParam = settings.parameters[i];
+                    if (toParam.overrideState)
+                    {
+                        var fromParam = target.parameters[i];
+                        fromParam.SetValue(toParam);
                     }
                 }
             }

@@ -27,11 +27,24 @@ namespace UnityEngine.Rendering.PostProcessing
             }
         }
 
+        private static readonly string[] PostProcessingEffectWhitelist =
+        {
+            "SCPE.SpeedLines",
+            "SCPE.TiltShift",
+            "SCPE.LightStreaks",
+        };
+
+        private static readonly string[] PostProcessingEffectBlacklist =
+        {
+            "SCPE.",
+            "Starstruck.Environments.Reverse3d.PostProcessing.Reverse3dDepth",
+        };
+
         const int k_MaxLayerCount = 32; // Max amount of layers available in Unity
         readonly Dictionary<int, List<PostProcessVolume>> m_SortedVolumes;
         readonly List<PostProcessVolume> m_Volumes;
         readonly Dictionary<int, bool> m_SortNeeded;
-        readonly List<PostProcessEffectSettings> m_BaseSettings;
+        readonly List<(PostProcessEffectSettings,Type)> m_BaseSettings;
         readonly List<Collider> m_TempColliders;
 
         /// <summary>
@@ -46,7 +59,7 @@ namespace UnityEngine.Rendering.PostProcessing
             m_SortedVolumes = new Dictionary<int, List<PostProcessVolume>>();
             m_Volumes = new List<PostProcessVolume>();
             m_SortNeeded = new Dictionary<int, bool>();
-            m_BaseSettings = new List<PostProcessEffectSettings>();
+            m_BaseSettings = new List<(PostProcessEffectSettings, Type)>();
             m_TempColliders = new List<Collider>(5);
 
             settingsTypes = new Dictionary<Type, PostProcessAttribute>();
@@ -69,7 +82,7 @@ namespace UnityEngine.Rendering.PostProcessing
             settingsTypes.Clear();
 
             foreach (var settings in m_BaseSettings)
-                RuntimeUtilities.Destroy(settings);
+                RuntimeUtilities.Destroy(settings.Item1);
 
             m_BaseSettings.Clear();
         }
@@ -91,11 +104,18 @@ namespace UnityEngine.Rendering.PostProcessing
             {
                 settingsTypes.Add(type, type.GetAttribute<PostProcessAttribute>());
 
+                var typeFullName = type.FullName;
+                if (!PostProcessingEffectWhitelist.Any(x => typeFullName.Equals(x))
+                    && PostProcessingEffectBlacklist.Any(x => typeFullName.Contains(x)))
+                {
+                    continue;
+                }
+
                 // Create an instance for each effect type, these will be used for the lowest
                 // priority global volume as we need a default state when exiting volume ranges
                 var inst = (PostProcessEffectSettings)ScriptableObject.CreateInstance(type);
                 inst.SetAllOverridesTo(true, false);
-                m_BaseSettings.Add(inst);
+                m_BaseSettings.Add((inst,type));
             }
         }
 
@@ -304,9 +324,12 @@ namespace UnityEngine.Rendering.PostProcessing
         // Faster version of OverrideSettings to force replace values in the global state
         void ReplaceData(PostProcessLayer postProcessLayer)
         {
-            foreach (var settings in m_BaseSettings)
+            foreach (var item in m_BaseSettings)
             {
-                var target = postProcessLayer.GetBundle(settings.GetType()).settings;
+                var settings = item.Item1;
+                var settingsType = item.Item2;
+
+                var target = postProcessLayer.GetBundle(settingsType).settings;
                 int count = settings.parameters.Count;
 
                 for (int i = 0; i < count; i++)
@@ -346,7 +369,16 @@ namespace UnityEngine.Rendering.PostProcessing
                 // Global volume always have influence
                 if (volume.isGlobal)
                 {
-                    postProcessLayer.OverrideSettings(settings, Mathf.Clamp01(volume.weight));
+                    float weight = Mathf.Clamp01(volume.weight);
+                    if (Mathf.Approximately(weight, 1f))
+                    {
+                        postProcessLayer.OverrideSettings(settings);
+                    }
+                    else if (!Mathf.Approximately(weight, 0f))
+                    {
+                        postProcessLayer.OverrideSettings(settings, weight);
+                    }
+
                     continue;
                 }
 
