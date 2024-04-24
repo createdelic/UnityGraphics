@@ -29,9 +29,11 @@ namespace UnityEngine.Rendering.PostProcessing
 
         private static readonly string[] PostProcessingEffectWhitelist =
         {
+            "SCPE.LightStreaks",
+            "SCPE.LUT",
+            "SCPE.RadialBlur",
             "SCPE.SpeedLines",
             "SCPE.TiltShift",
-            "SCPE.LightStreaks",
         };
 
         private static readonly string[] PostProcessingEffectBlacklist =
